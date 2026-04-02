@@ -1,141 +1,85 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR受付システム - 外部実行版</title>
+    <title>QRコード受付システム</title>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #f0f2f5; margin: 0; padding: 20px; }
-        .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        #video-container { position: relative; width: 100%; aspect-ratio: 4/3; background: #000; border-radius: 10px; overflow: hidden; margin: 15px 0; }
-        #canvas { width: 100%; height: 100%; object-fit: cover; }
-        #result { padding: 15px; font-weight: bold; border-radius: 8px; font-size: 1.1em; min-height: 50px; display: flex; align-items: center; justify-content: center; background: #eee; }
-        .btn { padding: 12px 24px; font-size: 1em; color: white; border: none; border-radius: 25px; cursor: pointer; transition: 0.2s; margin: 10px; }
-        .btn-primary { background: #007bff; }
-        .btn-primary:hover { background: #0056b3; }
-        select { padding: 10px; border-radius: 5px; width: 80%; margin-bottom: 10px; }
-        /* 状態別カラー */
-        .status-scanned { background: #28a745 !important; color: white; }
-        .status-alreadyScanned { background: #ffc107 !important; color: #333; }
-        .status-notFound { background: #dc3545 !important; color: white; }
+        body { font-family: sans-serif; text-align: center; margin: 0; background: #f0f0f0; }
+        #canvas { width: 100%; max-width: 400px; border: 2px solid #333; }
+        #result { margin-top: 20px; padding: 15px; font-weight: bold; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
     </style>
 </head>
 <body>
+    <h1>QRコードスキャナー</h1>
+    <video id="video" style="display:none"></video>
+    <canvas id="canvas"></canvas>
+    <div id="result">QRコードをかざしてください</div>
 
-<div class="container">
-    <h2>QR受付スキャナー</h2>
+    <script>
+        // ★ここにGASのデプロイURLを貼り付けてください
+        const GAS_URL = "YOUR_GAS_WEB_APP_URL_HERE";
 
-    <div id="setup">
-        <p>カメラを選択して起動してください</p>
-        <select id="camera-select"></select><br>
-        <button id="start-btn" class="btn btn-primary">カメラを起動する</button>
-    </div>
+        const video = document.getElementById("video");
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+        const resultDiv = document.getElementById("result");
 
-    <div id="scanner" style="display:none;">
-        <div id="video-container">
-            <canvas id="canvas"></canvas>
-        </div>
-        <div id="result">QRコードをかざしてください</div>
-        <button onclick="location.reload()" class="btn" style="background:#666;">カメラ停止 / 再起動</button>
-    </div>
-</div>
+        let isProcessing = false;
 
-<audio id="sound-ok" src="https://raw.githubusercontent.com/Hideokamoto/public-sound-effects/master/correct1.mp3"></audio>
-<audio id="sound-ng" src="https://raw.githubusercontent.com/Hideokamoto/public-sound-effects/master/interrogation1.mp3"></audio>
-
-<script>
-    // ★重要：デプロイしたGASのウェブアプリURLをここに貼り付けてください
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwc0f5WwG1FtH5aHwaap8i-k0qIjQvgkIjMa58zZwY-8eVT5OdeKmquo6ebk9xkoJS0fQ/exec";
-
-    const video = document.createElement("video");
-    const canvasElement = document.getElementById("canvas");
-    const canvas = canvasElement.getContext("2d");
-    const resultDiv = document.getElementById("result");
-    const cameraSelect = document.getElementById("camera-select");
-    let isScanning = false;
-
-    // 利用可能なカメラをリストアップ
-    navigator.mediaDevices.enumerateDevices().then(devices => {
-        devices.forEach(device => {
-            if (device.kind === 'videoinput') {
-                const option = document.createElement('option');
-                option.value = device.deviceId;
-                option.text = device.label || `カメラ ${cameraSelect.length + 1}`;
-                cameraSelect.appendChild(option);
-            }
-        });
-    });
-
-    document.getElementById('start-btn').addEventListener('click', () => {
-        const constraints = { video: { deviceId: cameraSelect.value ? { exact: cameraSelect.value } : undefined } };
-        navigator.mediaDevices.getUserMedia(constraints).then(stream => {
-            document.getElementById('setup').style.display = 'none';
-            document.getElementById('scanner').style.display = 'block';
-            video.srcObject = stream;
-            video.setAttribute("playsinline", true);
-            video.play();
-            isScanning = true;
-            requestAnimationFrame(tick);
-        });
-    });
-
-    function tick() {
-        if (!isScanning) return;
-        if (video.readyState === video.HAVE_ENOUGH_DATA) {
-            canvasElement.height = video.videoHeight;
-            canvasElement.width = video.videoWidth;
-            canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-            const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
-            const code = jsQR(imageData.data, imageData.width, imageData.height);
-
-            if (code) {
-                isScanning = false;
-                sendToGas(code.data);
-                return;
-            }
-        }
-        requestAnimationFrame(tick);
-    }
-
-    async function sendToGas(qrData) {
-        resultDiv.className = "";
-        resultDiv.innerText = "照合中...";
-
-        try {
-            const response = await fetch(GAS_URL, {
-                method: "POST",
-                body: JSON.stringify({ data: qrData })
+        // カメラ起動
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then(stream => {
+                video.srcObject = stream;
+                video.setAttribute("playsinline", true);
+                video.play();
+                requestAnimationFrame(tick);
             });
-            const res = await response.json();
 
-            // 状態に応じて表示を切り替え
-            if (res.status === "scanned") {
-                document.getElementById("sound-ok").play();
-                resultDiv.innerText = "【成功】 受付しました";
-                resultDiv.classList.add("status-scanned");
-            } else if (res.status === "alreadyScanned") {
-                document.getElementById("sound-ng").play();
-                resultDiv.innerText = "【警告】 既に受付済みです";
-                resultDiv.classList.add("status-alreadyScanned");
-            } else {
-                document.getElementById("sound-ng").play();
-                resultDiv.innerText = "【エラー】 データが見つかりません";
-                resultDiv.classList.add("status-notFound");
+        function tick() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.height = video.videoHeight;
+                canvas.width = video.videoWidth;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+                if (code && !isProcessing) {
+                    sendToGas(code.data);
+                }
             }
-        } catch (e) {
-            resultDiv.innerText = "通信エラーが発生しました";
-            console.error(e);
+            requestAnimationFrame(tick);
         }
 
-        // 3秒後にスキャン再開
-        setTimeout(() => {
-            resultDiv.className = "";
-            resultDiv.innerText = "QRコードをかざしてください";
-            isScanning = true;
-            requestAnimationFrame(tick);
-        }, 3000);
-    }
-</script>
+        async function sendToGas(qrData) {
+            isProcessing = true;
+            resultDiv.innerText = "照会中...";
+            
+            try {
+                const response = await fetch(GAS_URL, {
+                    method: "POST",
+                    body: JSON.stringify({ qrData: qrData })
+                });
+                const res = await response.json();
+                
+                resultDiv.className = res.status;
+                resultDiv.innerText = `${res.message}\n${res.userName || ""}`;
+                
+                // 3秒後に再読み込み可能にする
+                setTimeout(() => {
+                    isProcessing = false;
+                    resultDiv.innerText = "次のQRコードをかざしてください";
+                    resultDiv.className = "";
+                }, 3000);
+            } catch (e) {
+                resultDiv.innerText = "通信エラーが発生しました";
+                isProcessing = false;
+            }
+        }
+    </script>
 </body>
 </html>
