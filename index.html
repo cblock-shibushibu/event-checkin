@@ -69,38 +69,40 @@
             requestAnimationFrame(tick);
         }
 
-        async function sendToGas(qrData) {
-            isProcessing = true;
-            resultDiv.className = "loading";
-            resultDiv.innerText = "照会中...";
-            
-            try {
-                const response = await fetch(GAS_URL, {
-                    method: "POST",
-                    body: JSON.stringify({ qrData: qrData })
-                });
-                const res = await response.json();
-                
-                resultDiv.className = res.status;
-                if (res.status === "success") {
-                    soundSuccess.play(); // 成功音を鳴らす
-                    resultDiv.innerText = `【${res.userName}様】\n${res.message}`;
-                } else {
-                    soundError.play();   // 失敗音を鳴らす
-                    resultDiv.innerText = res.message;
-                }
-                
-                setTimeout(() => {
-                    isProcessing = false;
-                    resultDiv.innerText = "次のQRコードをスキャンしてください";
-                    resultDiv.className = "";
-                }, 3000);
-            } catch (e) {
-                soundError.play();
-                resultDiv.innerText = "通信エラーが発生しました";
-                isProcessing = false;
-            }
+async function sendToGas(qrData) {
+    isProcessing = true;
+    resultDiv.className = "loading";
+    // ★読み取ったコードデータを表示するように変更
+    resultDiv.innerText = `コード: ${qrData}\n照会中...`;
+    
+    try {
+        const response = await fetch(GAS_URL, {
+            method: "POST",
+            body: JSON.stringify({ qrData: qrData })
+        });
+        const res = await response.json();
+        
+        resultDiv.className = res.status;
+        if (res.status === "success") {
+            soundSuccess.play();
+            // ★成功時もコードデータを残す場合はここに追記
+            resultDiv.innerText = `【${res.userName}様】\n${res.message}\n(Data: ${qrData})`;
+        } else {
+            soundError.play();
+            resultDiv.innerText = `${res.message}\n(Data: ${qrData})`;
         }
+        
+        setTimeout(() => {
+            isProcessing = false;
+            resultDiv.innerText = "次のQRコードをスキャンしてください";
+            resultDiv.className = "";
+        }, 3000);
+    } catch (e) {
+        soundError.play();
+        resultDiv.innerText = `通信エラーが発生しました\n(Data: ${qrData})`;
+        isProcessing = false;
+    }
+}
     </script>
 </body>
 </html>
