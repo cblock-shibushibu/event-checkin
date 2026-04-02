@@ -1,0 +1,15 @@
+{
+  "name": "QR受付システム",
+  "short_name": "QR受付",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#f0f0f0",
+  "theme_color": "#007bff",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/241/241528.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
