@@ -31,8 +31,10 @@
         const GAS_URL = "https://script.google.com/macros/s/AKfycbwwkE2u6CR7B1SP2aw4ZcFYyCTMYiIbZWEdZGhvSNT-0TSNb3N-W-BMwv_vdy0j7ncp9Q/exec";
         
         // 音源の定義（Web Audio APIを使わず、手軽なAudioオブジェクト）
-        const soundSuccess = new Audio('https://otologic.jp/free/se/bin/level-up1.mp3'); // 成功音
-        const soundError = new Audio('https://otologic.jp/free/se/bin/error1.mp3');     // 失敗音
+        // 成功音（キラキラした音）
+        const soundSuccess = new Audio('https://actions.google.com/google_assistant/ambience/casio_keyboard/low_pitched_synth_low_bit_rate.mp3'); 
+        // 失敗音（低いブザー音）
+        const soundError = new Audio('https://actions.google.com/google_assistant/ambience/casio_keyboard/high_pitched_synth_low_bit_rate.mp3');
 
         const video = document.getElementById("video");
         const canvas = document.getElementById("canvas");
